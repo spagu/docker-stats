@@ -1,0 +1,61 @@
+# Site settings
+title: Docker Stats Monitor
+description: Real-time Docker container statistics monitor
+baseurl: "/docker-stats"
+url: "https://spagu.github.io"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Kramdown settings for Mermaid support
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
+# Include Mermaid.js
+mermaid:
+  version: "10.9.1"
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - .gitignore
+  - .github
+  - Makefile
+  - "*.go"
+  - go.mod
+  - go.sum
+  - build
+  - dist
+  - scripts
+  - docs/github-actions-versions-dynamic.md
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /:collection/:name/
+
+# Default values
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+  - scope:
+      path: ""
+      type: "docs"
+    values:
+      layout: "doc"
