@@ -38,6 +38,48 @@ graph TD
     G --> R[Navigation]
 ```
 
+## How It Works
+
+```mermaid
+flowchart LR
+    subgraph User
+        A[Start docker-stats]
+    end
+    
+    subgraph Application
+        B[Initialize Client]
+        C{Docker Available?}
+        D[Start TUI]
+        E[Fetch Stats]
+        F[Render Display]
+        G[Wait Interval]
+        H[Handle Input]
+    end
+    
+    subgraph Docker
+        I[Docker Daemon]
+        J[Container List]
+        K[Container Stats]
+    end
+    
+    A --> B
+    B --> C
+    C -->|No| X[Exit with Error]
+    C -->|Yes| D
+    D --> E
+    E --> I
+    I --> J
+    J --> K
+    K --> F
+    F --> G
+    G --> E
+    
+    H -->|q/Ctrl+C| Y[Exit]
+    H -->|r| E
+    H -->|c/m/n| F
+    H -->|↑/↓| F
+```
+
 ![Docker Stats Monitor](docs/screenshot.png)
 
 ## Features
