@@ -87,7 +87,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Make sure Docker daemon is running and you have permissions to access it.")
 		os.Exit(1)
 	}
-	defer func() { _ = client.Close() }()
+	defer client.Close() //nolint:errcheck // intentionally ignoring close error on exit
 
 	// Simple mode or once mode (default), TUI only with -tui flag
 	if (*simple && !*tui) || *once {

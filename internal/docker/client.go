@@ -119,7 +119,7 @@ func NewClient() (*Client, error) {
 
 	_, err = cli.Ping(ctx)
 	if err != nil {
-		_ = cli.Close()
+		cli.Close() //nolint:errcheck // intentionally ignoring close error on connection failure
 		return nil, fmt.Errorf("failed to connect to Docker daemon: %w", err)
 	}
 
@@ -221,7 +221,7 @@ func (c *Client) getContainerStats(ctx context.Context, cont container.Summary) 
 	if err != nil {
 		return stats, nil // Return partial stats on error
 	}
-	defer func() { _ = statsResp.Body.Close() }()
+	defer statsResp.Body.Close() //nolint:errcheck // intentionally ignoring close error
 
 	var statsJSON StatsJSON
 	decoder := json.NewDecoder(statsResp.Body)
