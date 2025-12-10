@@ -57,11 +57,23 @@ jobs:
           rpm \
           alien
 
+    - name: Get version
+      id: version
+      run: |
+        if [[ "${{ github.event_name }}" == "release" ]]; then
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix
+        else
+          VERSION="0.0.0-dev"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
     - name: Build binary
       env:
         GOOS: linux
         GOARCH: ${{ matrix.arch == 'arm64' && 'arm64' || 'amd64' }}
-        VERSION: ${{ github.event.release.tag_name || 'dev' }}
+        VERSION: ${{ steps.version.outputs.version }}
       run: |
         mkdir -p build/usr/bin
         mkdir -p build/usr/share/doc/docker-stats
@@ -78,9 +90,10 @@ jobs:
     - name: Create DEB package
       if: matrix.package_type == 'deb'
       run: |
+        VERSION="${{ steps.version.outputs.version }}"
         cat > build/DEBIAN/control << EOF
         Package: docker-stats
-        Version: ${GITHUB_REF#refs/tags/}
+        Version: ${VERSION}
         Section: utils
         Priority: optional
         Architecture: ${{ matrix.package_arch }}
@@ -115,6 +128,7 @@ jobs:
     - name: Create RPM package
       if: matrix.package_type == 'rpm'
       run: |
+        VERSION="${{ steps.version.outputs.version }}"
         # Convert DEB to RPM using alien
         if [ -f docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.deb ]; then
           alien --to-rpm --scripts docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.deb
@@ -124,7 +138,7 @@ jobs:
           
           cat > rpmbuild/SPECS/docker-stats.spec << EOF
         Name: docker-stats
-        Version: ${GITHUB_REF#refs/tags/v}
+        Version: ${VERSION}
         Release: 1%{?dist}
         Summary: Real-time Docker container statistics monitor
         License: BSD
