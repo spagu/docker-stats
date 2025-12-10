@@ -7,22 +7,18 @@ url: "https://spagu.github.io"
 # Build settings
 markdown: kramdown
 highlighter: rouge
-plugins:
-  - jekyll-feed
-  - jekyll-sitemap
-  - jekyll-seo-tag
 
-# Kramdown settings for Mermaid support
+# Use README.md as index
+index:
+  - README.md
+
+# Kramdown settings
 kramdown:
   input: GFM
   syntax_highlighter: rouge
   syntax_highlighter_opts:
     block:
       line_numbers: false
-
-# Include Mermaid.js
-mermaid:
-  version: "10.9.1"
 
 # Exclude from processing
 exclude:
@@ -39,23 +35,4 @@ exclude:
   - build
   - dist
   - scripts
-  - docs/github-actions-versions-dynamic.md
-
-# Collections
-collections:
-  docs:
-    output: true
-    permalink: /:collection/:name/
-
-# Default values
-defaults:
-  - scope:
-      path: ""
-      type: "pages"
-    values:
-      layout: "default"
-  - scope:
-      path: ""
-      type: "docs"
-    values:
-      layout: "doc"
+  - internal

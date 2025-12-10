@@ -3,134 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ site.title | default: "Docker Stats Monitor" }}{% if page.title %} - {{ page.title }}{% endif %}</title>
-  <meta name="description" content="{{ site.description | default: "Real-time Docker container statistics monitor" }}">
+  <title>{{ page.title | default: site.title }}</title>
+  <meta name="description" content="{{ site.description }}">
+  
+  <!-- GitHub Markdown CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css">
+  
+  <!-- Highlight.js for syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   
   <!-- Mermaid.js -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@{{ site.mermaid.version | default: "10.9.1" }}/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
   
-  <!-- GitHub Pages style -->
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      line-height: 1.6;
-      color: #24292e;
-      max-width: 1200px;
+      box-sizing: border-box;
+      min-width: 200px;
+      max-width: 980px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 45px;
       background-color: #ffffff;
     }
     
-    .header {
-      border-bottom: 1px solid #e1e4e8;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
+    .markdown-body {
+      box-sizing: border-box;
+      min-width: 200px;
+      max-width: 980px;
+      margin: 0 auto;
     }
     
-    .header h1 {
-      margin: 0;
-      font-size: 2.5em;
-      font-weight: 600;
+    @media (max-width: 767px) {
+      body {
+        padding: 15px;
+      }
     }
     
-    .header p {
-      margin: 10px 0 0 0;
-      color: #586069;
-      font-size: 1.1em;
-    }
-    
-    .content {
-      margin-bottom: 40px;
-    }
-    
-    .footer {
-      border-top: 1px solid #e1e4e8;
-      padding-top: 20px;
-      margin-top: 40px;
-      text-align: center;
-      color: #586069;
-    }
-    
-    /* Mermaid diagram styles */
     .mermaid {
       text-align: center;
       margin: 20px 0;
     }
-    
-    /* Code blocks */
-    pre, code {
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-      background-color: #f6f8fa;
-      border-radius: 6px;
-    }
-    
-    pre {
-      padding: 16px;
-      overflow: auto;
-      font-size: 85%;
-    }
-    
-    code {
-      padding: 0.2em 0.4em;
-    }
-    
-    /* Links */
-    a {
-      color: #0366d6;
-      text-decoration: none;
-    }
-    
-    a:hover {
-      text-decoration: underline;
-    }
-    
-    /* Badges */
-    .badges {
-      margin: 20px 0;
-    }
-    
-    .badges img {
-      margin-right: 10px;
-      margin-bottom: 10px;
-    }
   </style>
 </head>
-<body>
-  <div class="header">
-    <h1>{{ site.title | default: "Docker Stats Monitor" }}</h1>
-    <p>{{ site.description | default: "Real-time Docker container statistics monitor" }}</p>
-  </div>
-  
-  <div class="content">
-    {{ content }}
-  </div>
-  
-  <div class="footer">
-    <p>
-      <a href="{{ site.github.repository_url }}">GitHub</a> | 
-      Built with <a href="https://jekyllrb.com/">Jekyll</a>
-    </p>
-  </div>
+<body class="markdown-body">
+  {{ content }}
   
   <script>
+    // Initialize syntax highlighting
+    hljs.highlightAll();
+    
     // Initialize Mermaid
     mermaid.initialize({
       startOnLoad: true,
-      theme: 'default',
-      themeVariables: {
-        primaryColor: '#0366d6',
-        primaryTextColor: '#24292e',
-        primaryBorderColor: '#d1d5da',
-        lineColor: '#586069',
-        secondaryColor: '#f6f8fa',
-        tertiaryColor: '#ffffff'
-      },
-      flowchart: {
-        useMaxWidth: true,
-        htmlLabels: true,
-        curve: 'basis'
-      }
+      theme: 'default'
     });
+    
+    // Convert mermaid code blocks to divs
+    document.querySelectorAll('pre code.language-mermaid').forEach(function(el) {
+      var parent = el.parentNode;
+      var div = document.createElement('div');
+      div.className = 'mermaid';
+      div.textContent = el.textContent;
+      parent.parentNode.replaceChild(div, parent);
+    });
+    
+    // Re-render mermaid after conversion
+    mermaid.init(undefined, '.mermaid');
   </script>
 </body>
 </html>
