@@ -119,22 +119,43 @@ jobs:
           echo "asset_name=$NAME.tar.gz" >> $GITHUB_ENV
         fi
 
-    - name: Upload Release Asset
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v5
+      with:
+        name: docker-stats-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: |
+          docker-stats-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+          docker-stats-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+        retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    needs: [bump-version, build-and-release]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/${{ env.asset_path }}
+        files: |
+          artifacts/*/*.tar.gz
+          artifacts/*/*.zip
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+        name: ${{ needs.bump-version.outputs.version }}
         tag_name: ${{ needs.bump-version.outputs.version }}
-        name: Release ${{ needs.bump-version.outputs.version }}
         body: |
-          ## Changes
-          Automated release from main branch
-          
           ## Installation
-          Download the appropriate binary for your platform and architecture:
           
           **Linux (AMD64):** docker-stats-${{ needs.bump-version.outputs.version }}-linux-amd64.tar.gz
           **Linux (ARM64):** docker-stats-${{ needs.bump-version.outputs.version }}-linux-arm64.tar.gz
           **FreeBSD (AMD64):** docker-stats-${{ needs.bump-version.outputs.version }}-freebsd-amd64.tar.gz
+          **FreeBSD (ARM64):** docker-stats-${{ needs.bump-version.outputs.version }}-freebsd-arm64.tar.gz
           **macOS (Intel):** docker-stats-${{ needs.bump-version.outputs.version }}-darwin-amd64.tar.gz
           **macOS (Apple Silicon):** docker-stats-${{ needs.bump-version.outputs.version }}-darwin-arm64.tar.gz
           **Windows (AMD64):** docker-stats-${{ needs.bump-version.outputs.version }}-windows-amd64.zip
@@ -151,4 +172,3 @@ jobs:
           ```
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        asset_path: ${{ env.asset_path }}
