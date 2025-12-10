@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  bump-version:
+    name: Bump Version and Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.new_version }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Bump version
+      id: version
+      run: |
+        # Get current version from git tag or default to v0.0.0
+        CURRENT_VERSION=$(git describe --tags --match 'v*' 2>/dev/null || echo "v0.0.0")
+        echo "Current version: $CURRENT_VERSION"
+        
+        # Extract version numbers
+        if [[ $CURRENT_VERSION =~ v([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+          MAJOR=${BASH_REMATCH[1]}
+          MINOR=${BASH_REMATCH[2]}
+          PATCH=${BASH_REMATCH[3]}
+          
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+        else
+          NEW_VERSION="v0.1.0"
+        fi
+        
+        echo "New version: $NEW_VERSION"
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        
+        # Create and push tag
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+        git push origin "$NEW_VERSION"
+
+  build-and-release:
+    name: Build and Release
+    needs: bump-version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, freebsd, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+          - goos: freebsd
+            goarch: arm64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        VERSION: ${{ needs.bump-version.outputs.version }}
+      run: |
+        NAME="docker-stats"
+        if [ "$GOOS" = "windows" ]; then
+          NAME="$NAME.exe"
+        fi
+        
+        mkdir -p dist
+        
+        go build -ldflags="-X main.version=$VERSION -s -w" \
+          -o "dist/$NAME" \
+          ./cmd/docker-stats
+
+    - name: Create archive
+      run: |
+        cd dist
+        NAME="docker-stats-${{ needs.bump-version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          7z a "$NAME.zip" docker-stats.exe
+          echo "asset_path=$NAME.zip" >> $GITHUB_ENV
+          echo "asset_name=$NAME.zip" >> $GITHUB_ENV
+        else
+          tar -czf "$NAME.tar.gz" docker-stats
+          echo "asset_path=$NAME.tar.gz" >> $GITHUB_ENV
+          echo "asset_name=$NAME.tar.gz" >> $GITHUB_ENV
+        fi
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/${{ env.asset_path }}
+        tag_name: ${{ needs.bump-version.outputs.version }}
+        name: Release ${{ needs.bump-version.outputs.version }}
+        body: |
+          ## Changes
+          Automated release from main branch
+          
+          ## Installation
+          Download the appropriate binary for your platform and architecture:
+          
+          **Linux (AMD64):** docker-stats-${{ needs.bump-version.outputs.version }}-linux-amd64.tar.gz
+          **Linux (ARM64):** docker-stats-${{ needs.bump-version.outputs.version }}-linux-arm64.tar.gz
+          **FreeBSD (AMD64):** docker-stats-${{ needs.bump-version.outputs.version }}-freebsd-amd64.tar.gz
+          **macOS (Intel):** docker-stats-${{ needs.bump-version.outputs.version }}-darwin-amd64.tar.gz
+          **macOS (Apple Silicon):** docker-stats-${{ needs.bump-version.outputs.version }}-darwin-arm64.tar.gz
+          **Windows (AMD64):** docker-stats-${{ needs.bump-version.outputs.version }}-windows-amd64.zip
+          
+          Extract and run:
+          ```bash
+          # For Unix systems
+          tar -xzf docker-stats-${{ needs.bump-version.outputs.version }}-<os>-<arch>.tar.gz
+          ./docker-stats
+          
+          # For Windows
+          unzip docker-stats-${{ needs.bump-version.outputs.version }}-windows-amd64.zip
+          ./docker-stats.exe
+          ```
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        asset_path: ${{ env.asset_path }}
