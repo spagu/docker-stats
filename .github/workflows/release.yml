@@ -65,8 +65,6 @@ jobs:
         exclude:
           - goos: windows
             goarch: arm64
-          - goos: freebsd
-            goarch: arm64
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
