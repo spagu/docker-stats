@@ -17,7 +17,7 @@ A real-time terminal UI tool for monitoring Docker container statistics, similar
 
 ## Architecture
 
-```mermaid
+<div class="mermaid">
 graph TB
     A[Docker Stats Monitor] --> B[Main Process]
     B --> C[TUI Module]
@@ -43,7 +43,7 @@ graph TB
     style A fill:#0366d6,color:#ffffff
     style D fill:#28a745,color:#ffffff
     style G fill:#ffc107,color:#000000
-```
+</div>
 
 ## Installation
 
@@ -108,7 +108,7 @@ docker-stats -once
 
 ## Data Flow
 
-```mermaid
+<div class="mermaid">
 sequenceDiagram
     participant UI as TUI
     participant Main as Main Process
@@ -132,7 +132,7 @@ sequenceDiagram
     
     UI->>Main: User input
     Main->>UI: Handle action
-```
+</div>
 
 ## Requirements
 
