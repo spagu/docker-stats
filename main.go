@@ -43,7 +43,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -88,7 +87,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Make sure Docker daemon is running and you have permissions to access it.")
 		os.Exit(1)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Simple mode or once mode (default), TUI only with -tui flag
 	if (*simple && !*tui) || *once {
@@ -171,9 +170,6 @@ var (
 			Bold(true).
 			Foreground(lipgloss.Color("7"))
 
-	rowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("7"))
-
 	selectedStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color("8")).
 			Foreground(lipgloss.Color("15"))
@@ -226,7 +222,10 @@ func fetchContainers(client *docker.Client, showAll bool) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		containers, err := client.GetContainerStats(ctx, showAll)
-		info, _ := client.GetDockerInfo(ctx)
+		info, infoErr := client.GetDockerInfo(ctx)
+		if infoErr != nil {
+			info = nil
+		}
 		return containerMsg{containers: containers, info: info, err: err}
 	}
 }
@@ -614,7 +613,10 @@ func runSimpleMode(client *docker.Client, showAll, once bool, interval time.Dura
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			return
 		}
-		info, _ := client.GetDockerInfo(ctx)
+		info, infoErr := client.GetDockerInfo(ctx)
+		if infoErr != nil {
+			info = nil
+		}
 
 		fmt.Printf("DOCKER STATS %s | %s", AppVersion, time.Now().Format("15:04:05"))
 		if info != nil {
@@ -659,76 +661,4 @@ func runSimpleMode(client *docker.Client, showAll, once bool, interval time.Dura
 	// Clear terminal after TUI exits
 	fmt.Print("\033[2J\033[H\033[0m")
 	fmt.Println()
-}
-
-// Terminal helper functions
-func getTermHeight() (int, error) {
-	// Try tput first (more reliable)
-	if out, err := exec.Command("tput", "lines").Output(); err == nil {
-		var rows int
-		if _, err := fmt.Sscanf(string(out), "%d", &rows); err == nil && rows > 0 {
-			return rows, nil
-		}
-	}
-
-	// Fallback to stty
-	cmd := exec.Command("stty", "size")
-	cmd.Stdin = os.Stdin
-	out, err := cmd.Output()
-	if err != nil {
-		return 40, nil // Default fallback
-	}
-	var rows, cols int
-	fmt.Sscanf(string(out), "%d %d", &rows, &cols)
-	if rows < 10 {
-		return 40, nil // IDE terminal fallback
-	}
-	return rows, nil
-}
-
-func getTermWidth() (int, error) {
-	// Try tput first (more reliable)
-	if out, err := exec.Command("tput", "cols").Output(); err == nil {
-		var cols int
-		if _, err := fmt.Sscanf(string(out), "%d", &cols); err == nil && cols > 0 {
-			return cols, nil
-		}
-	}
-
-	// Fallback to stty
-	cmd := exec.Command("stty", "size")
-	cmd.Stdin = os.Stdin
-	out, err := cmd.Output()
-	if err != nil {
-		return 120, nil // Default fallback
-	}
-	var rows, cols int
-	fmt.Sscanf(string(out), "%d %d", &rows, &cols)
-	if cols < 40 {
-		return 120, nil // IDE terminal fallback
-	}
-	return cols, nil
-}
-
-func makeRaw() ([]byte, error) {
-	cmd := exec.Command("stty", "-g")
-	cmd.Stdin = os.Stdin
-	oldState, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	rawCmd := exec.Command("stty", "raw", "-echo")
-	rawCmd.Stdin = os.Stdin
-	if err := rawCmd.Run(); err != nil {
-		return nil, err
-	}
-
-	return oldState, nil
-}
-
-func restoreTerminal(oldState []byte) {
-	cmd := exec.Command("stty", string(oldState))
-	cmd.Stdin = os.Stdin
-	cmd.Run()
 }

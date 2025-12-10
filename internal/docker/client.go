@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -120,7 +119,7 @@ func NewClient() (*Client, error) {
 
 	_, err = cli.Ping(ctx)
 	if err != nil {
-		cli.Close()
+		_ = cli.Close()
 		return nil, fmt.Errorf("failed to connect to Docker daemon: %w", err)
 	}
 
@@ -154,7 +153,7 @@ func (c *Client) GetContainerStats(ctx context.Context, showAll bool) ([]Contain
 
 	for _, cont := range containers {
 		wg.Add(1)
-		go func(cont types.Container) {
+		go func(cont container.Summary) {
 			defer wg.Done()
 
 			stats, err := c.getContainerStats(ctx, cont)
@@ -171,7 +170,7 @@ func (c *Client) GetContainerStats(ctx context.Context, showAll bool) ([]Contain
 	close(errChan)
 
 	// Collect results
-	var result []ContainerStats
+	result := make([]ContainerStats, 0, len(containers))
 	for stats := range statsChan {
 		result = append(result, stats)
 	}
@@ -180,7 +179,7 @@ func (c *Client) GetContainerStats(ctx context.Context, showAll bool) ([]Contain
 }
 
 // getContainerStats retrieves statistics for a single container
-func (c *Client) getContainerStats(ctx context.Context, cont types.Container) (ContainerStats, error) {
+func (c *Client) getContainerStats(ctx context.Context, cont container.Summary) (ContainerStats, error) {
 	stats := ContainerStats{
 		ID:      cont.ID[:12],
 		Name:    trimContainerName(cont.Names),
@@ -194,7 +193,7 @@ func (c *Client) getContainerStats(ctx context.Context, cont types.Container) (C
 	stats.ContainerSize = cont.SizeRw
 
 	// Get image size
-	imageInfo, _, err := c.cli.ImageInspectWithRaw(ctx, cont.ImageID)
+	imageInfo, err := c.cli.ImageInspect(ctx, cont.ImageID)
 	if err == nil {
 		stats.ImageSize = imageInfo.Size
 	}
@@ -222,7 +221,7 @@ func (c *Client) getContainerStats(ctx context.Context, cont types.Container) (C
 	if err != nil {
 		return stats, nil // Return partial stats on error
 	}
-	defer statsResp.Body.Close()
+	defer func() { _ = statsResp.Body.Close() }()
 
 	var statsJSON StatsJSON
 	decoder := json.NewDecoder(statsResp.Body)
