@@ -30,9 +30,14 @@ BUILD_DIR=build
 GO=go
 GOFLAGS=-ldflags="-s -w"
 
-.PHONY: all build clean test lint fmt security run help deps tidy
+.PHONY: all build clean test lint fmt security run help deps tidy check
 
 all: deps fmt lint test build ## 🚀 Run all tasks (deps, fmt, lint, test, build)
+
+check: fmt lint security test ## ✅ Run all checks before commit (fmt, lint, security, test)
+	@echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+	@echo "${GREEN}✅ All checks passed! Code is ready for commit.${RESET}"
+	@echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 
 help: ## 📖 Show this help message
 	@echo "${BLUE}Docker Stats Monitor - Available Commands${RESET}"

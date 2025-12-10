@@ -119,7 +119,7 @@ func NewClient() (*Client, error) {
 
 	_, err = cli.Ping(ctx)
 	if err != nil {
-		cli.Close() //nolint:errcheck // intentionally ignoring close error on connection failure
+		cli.Close() //nolint:errcheck // #nosec G104 - intentionally ignoring close error on connection failure
 		return nil, fmt.Errorf("failed to connect to Docker daemon: %w", err)
 	}
 
