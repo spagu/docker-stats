@@ -1,8 +1,11 @@
+version: 2
+
 run:
   timeout: 5m
   modules-download-mode: readonly
 
 linters:
+  default: none
   enable:
     - errcheck
     - gosimple
@@ -10,8 +13,6 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - unconvert
     - unparam
@@ -19,22 +20,27 @@ linters:
     - bodyclose
     - noctx
     - prealloc
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    govet:
+      enable-all: true
+    misspell:
+      locale: US
+    gosec:
+      excludes:
+        - G104 # Audit errors not checked
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  govet:
-    enable-all: true
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: github.com/tradik/cv-xslt
-  misspell:
-    locale: US
-  gosec:
-    excludes:
-      - G104 # Audit errors not checked
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes: github.com/spagu/docker-stats
 
 issues:
   exclude-rules:
