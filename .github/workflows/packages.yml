@@ -1,0 +1,291 @@
+name: Packages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+env:
+  GO_VERSION: '1.25'
+
+jobs:
+  packages:
+    name: Create OS Packages
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu
+            arch: amd64
+            package_type: deb
+            package_arch: amd64
+          - os: ubuntu
+            arch: amd64
+            package_type: rpm
+            package_arch: x86_64
+          - os: ubuntu
+            arch: arm64
+            package_type: deb
+            package_arch: arm64
+          - os: fedora
+            arch: amd64
+            package_type: rpm
+            package_arch: x86_64
+          - os: centos
+            arch: amd64
+            package_type: rpm
+            package_arch: x86_64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Install packaging tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          debhelper \
+          dpkg-dev \
+          rpm \
+          alien
+
+    - name: Build binary
+      env:
+        GOOS: linux
+        GOARCH: ${{ matrix.arch == 'arm64' && 'arm64' || 'amd64' }}
+        VERSION: ${{ github.event.release.tag_name || 'dev' }}
+      run: |
+        mkdir -p build/usr/bin
+        mkdir -p build/usr/share/doc/docker-stats
+        mkdir -p build/DEBIAN
+        
+        go build -ldflags="-X main.version=$VERSION -s -w" \
+          -o "build/usr/bin/docker-stats" \
+          .
+        
+        # Copy documentation
+        cp README.md build/usr/share/doc/docker-stats/
+        cp LICENSE build/usr/share/doc/docker-stats/
+
+    - name: Create DEB package
+      if: matrix.package_type == 'deb'
+      run: |
+        cat > build/DEBIAN/control << EOF
+        Package: docker-stats
+        Version: ${GITHUB_REF#refs/tags/}
+        Section: utils
+        Priority: optional
+        Architecture: ${{ matrix.package_arch }}
+        Maintainer: spagu <spagu@users.noreply.github.com>
+        Description: Real-time Docker container statistics monitor
+         A terminal-based tool for monitoring Docker container statistics,
+         similar to 'top' or 'htop' for Linux systems. Provides real-time
+         CPU, memory, network, and disk I/O statistics with color-coded
+         indicators and keyboard navigation.
+        Depends: docker.io (>= 20.10), libc6
+        EOF
+        
+        # Create postinst script
+        cat > build/DEBIAN/postinst << 'EOF'
+        #!/bin/sh
+        set -e
+        
+        # Add user to docker group if not already added
+        if ! groups "$USER" | grep -q docker; then
+            echo "Adding $USER to docker group..."
+            usermod -aG docker "$USER" || true
+            echo "You may need to log out and log back in for changes to take effect."
+        fi
+        
+        exit 0
+        EOF
+        chmod +x build/DEBIAN/postinst
+        
+        # Build package
+        dpkg-deb --build build docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.deb
+
+    - name: Create RPM package
+      if: matrix.package_type == 'rpm'
+      run: |
+        # Convert DEB to RPM using alien
+        if [ -f docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.deb ]; then
+          alien --to-rpm --scripts docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.deb
+        else
+          # Create RPM directly
+          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          
+          cat > rpmbuild/SPECS/docker-stats.spec << EOF
+        Name: docker-stats
+        Version: ${GITHUB_REF#refs/tags/v}
+        Release: 1%{?dist}
+        Summary: Real-time Docker container statistics monitor
+        License: BSD
+        URL: https://github.com/spagu/docker-stats
+        Source0: %{name}-%{version}.tar.gz
+        
+        Requires: docker >= 20.10
+        BuildRequires: golang >= 1.25
+        
+        %description
+        A terminal-based tool for monitoring Docker container statistics,
+        similar to 'top' or 'htop' for Linux systems. Provides real-time
+        CPU, memory, network, and disk I/O statistics with color-coded
+        indicators and keyboard navigation.
+        
+        %prep
+        %setup -q
+        
+        %build
+        go build -ldflags="-X main.version=%{version} -s -w" -o docker-stats .
+        
+        %install
+        install -D -m 755 docker-stats %{buildroot}/usr/bin/docker-stats
+        install -D -m 644 README.md %{buildroot}/usr/share/doc/docker-stats/README.md
+        install -D -m 644 LICENSE %{buildroot}/usr/share/doc/docker-stats/LICENSE
+        
+        %post
+        # Add user to docker group if not already added
+        if ! groups "$USER" | grep -q docker; then
+            echo "Adding $USER to docker group..."
+            usermod -aG docker "$USER" || true
+            echo "You may need to log out and log back in for changes to take effect."
+        fi
+        
+        %files
+        /usr/bin/docker-stats
+        /usr/share/doc/docker-stats/README.md
+        /usr/share/doc/docker-stats/LICENSE
+        
+        %changelog
+        * $(date +'%a %b %d %Y') spagu <spagu@users.noreply.github.com> - ${GITHUB_REF#refs/tags/v}-1
+        - Initial package release
+        EOF
+          
+          rpmbuild -ba rpmbuild/SPECS/docker-stats.spec
+          cp rpmbuild/RPMS/${{ matrix.package_arch }}/docker-stats-*.rpm docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.rpm
+        fi
+
+    - name: Upload packages
+      uses: actions/upload-artifact@v5
+      with:
+        name: docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}-${{ matrix.package_type }}
+        path: docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.${{ matrix.package_type }}
+        retention-days: 30
+
+    - name: Release packages
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: docker-stats-${{ matrix.os }}-${{ matrix.package_arch }}.${{ matrix.package_type }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  homebrew:
+    name: Update Homebrew formula
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    needs: packages
+    steps:
+    - name: Update Homebrew formula
+      env:
+        HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.HOMEBREW_GITHUB_API_TOKEN }}
+      run: |
+        if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
+          echo "Homebrew formula update would go here"
+          echo "Requires HOMEBREW_GITHUB_API_TOKEN secret with write permissions"
+        else
+          echo "Skipping Homebrew formula update"
+          echo "To enable: Set HOMEBREW_GITHUB_API_TOKEN secret in repository settings"
+        fi
+
+  snap:
+    name: Create Snap package
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Install Snapcraft
+      run: |
+        sudo snap install snapcraft --classic
+
+    - name: Create snap package
+      run: |
+        # Create snap directory structure
+        mkdir -p snap/docker-stats/bin
+        mkdir -p snap/docker-stats/usr/share/doc/docker-stats
+        
+        # Build binary
+        go build -ldflags="-X main.version=${{ github.event.release.tag_name }} -s -w" \
+          -o "snap/docker-stats/bin/docker-stats" \
+          .
+        
+        # Copy documentation
+        cp README.md snap/docker-stats/usr/share/doc/docker-stats/
+        cp LICENSE snap/docker-stats/usr/share/doc/docker-stats/
+        
+        # Create snapcraft.yaml
+        cat > snap/snapcraft.yaml << 'EOF'
+        name: docker-stats
+        version: git
+        summary: Real-time Docker container statistics monitor
+        description: |
+          A terminal-based tool for monitoring Docker container statistics,
+          similar to 'top' or 'htop' for Linux systems.
+        grade: stable
+        confinement: strict
+        base: core22
+        
+        parts:
+          docker-stats:
+            plugin: go
+            source: .
+            build-snaps: [go/1.25/stable]
+            
+        apps:
+          docker-stats:
+            command: bin/docker-stats
+            plugs:
+              - home
+              - network
+              - docker-support
+        
+        plugs:
+          docker-support:
+            interface: content
+            content: docker-executable
+            default-provider: docker
+            target: $SNAP/docker-support
+        EOF
+        
+        # Build snap
+        snapcraft --destructive-mode
+
+    - name: Upload Snap
+      uses: actions/upload-artifact@v5
+      with:
+        name: docker-stats-snap
+        path: "*.snap"
+        retention-days: 30
+
+    - name: Release Snap
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: "*.snap"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
